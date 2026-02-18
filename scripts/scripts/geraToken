@@ -1,0 +1,21 @@
+
+from databricks.sdk import WorkspaceClient
+ 
+# CORREÇÃO 1: host SEM "/browse?o=..." — apenas o hostname base
+HOST = "https://adb-7941093640821140.0.azuredatabricks.net"
+PROFILE = "adb-7941093640821140"
+ 
+# CORREÇÃO 2: especificar profile e auth_type para forçar U2M
+w = WorkspaceClient(
+    host=HOST,
+    profile=PROFILE,
+    auth_type="databricks-cli"
+)
+ 
+# CORREÇÃO 3: authenticate() retorna callable/dict, NÃO o token direto
+headers = w.config.authenticate()
+if callable(headers):
+    headers = headers()
+ 
+token = headers["Authorization"].replace("Bearer ", "")
+print(token)
