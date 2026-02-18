@@ -188,14 +188,24 @@ def main():
     total_txns = filtered_df.count()
     anomaly_count = anomalies_df.count()
 
+    # Number of individual transactions that fall on anomalous days
+    anomaly_days = anomalies_df.select("orderservice", "transaction_date").distinct()
+    anomaly_txns = (
+        filtered_df.join(
+            anomaly_days,
+            on=["orderservice", "transaction_date"],
+            how="inner",
+        ).count()
+    )
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total transactions in range", f"{total_txns:,}")
     with col2:
-            st.metric("Flagged anomalous days", f"{anomaly_count:,}")
+        st.metric("Flagged anomalous days", f"{anomaly_count:,}")
     with col3:
-        frac = (anomaly_count / total_txns) if total_txns > 0 else 0
-        st.metric("Anomalous share (approx.)", f"{100 * frac:.2f}%")
+        frac = (anomaly_txns / total_txns) if total_txns > 0 else 0
+        st.metric("Share of txns on anomalous days", f"{100 * frac:.2f}%")
 
     if anomaly_count == 0:
         st.success("No anomalous transaction patterns detected with the current settings.")
@@ -225,8 +235,33 @@ def main():
 
         st.subheader("Daily transaction counts with anomalies highlighted")
 
-        chart_data = top_anomalies.copy()
-        chart_data["is_anomaly"] = True
+        # Build baseline daily counts and join anomaly statistics so that
+        # non-anomalous days are visible alongside anomalous ones.
+        daily_counts_df = (
+            filtered_df.groupBy("orderservice", "transaction_date")
+            .agg(F.count(F.lit(1)).alias("txn_count"))
+        )
+
+        anomaly_details = anomalies_df.select(
+            "orderservice",
+            "transaction_date",
+            "z_score",
+            "mean_count",
+            "std_count",
+        )
+
+        chart_df_spark = (
+            daily_counts_df.join(
+                anomaly_details,
+                on=["orderservice", "transaction_date"],
+                how="left",
+            )
+            .withColumn("is_anomaly", F.col("z_score").isNotNull())
+        )
+
+        # Limit the number of rows materialized on the driver to keep
+        # the chart responsive for very large datasets.
+        chart_data = chart_df_spark.limit(5000).toPandas()
 
         base_chart = alt.Chart(chart_data).mark_bar().encode(
             x="transaction_date:T",
