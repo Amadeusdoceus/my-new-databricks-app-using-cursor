@@ -1,0 +1,11 @@
+command:
+  - streamlit
+  - run
+  - app.py
+
+# You can optionally configure environment variables here, for example:
+# env:
+#   # If you prefer to query via Databricks SQL instead of Spark, configure a warehouse:
+#   - name: DATABRICKS_WAREHOUSE_ID
+#     value: "<your_warehouse_id>"
+
